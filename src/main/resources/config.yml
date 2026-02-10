@@ -1,0 +1,67 @@
+# AeroHook Configuration File
+# Professional Grappling Hook Plugin
+
+# Grappling Hook Item Settings
+item:
+  name: "&b&lGrappling Hook"
+  lore:
+    - "&7Right-click to launch!"
+    - "&7Pull yourself towards blocks"
+    - "&e&oAeroHook v1.0"
+  material: FISHING_ROD
+
+# Physics Settings (Anti-Cheat Safe)
+physics:
+  # Maximum distance the hook can travel
+  max-distance: 50.0
+  
+  # Pull strength (base velocity multiplier)
+  pull-strength: 1.5
+  
+  # Vertical boost (adds upward momentum)
+  vertical-boost: 0.3
+  
+  # Horizontal multiplier (affects XZ velocity)
+  horizontal-multiplier: 1.0
+  
+  # Velocity smoothing (prevents AC flags)
+  # Lower = smoother but slower, Higher = faster but may flag AC
+  velocity-smoothing: 0.85
+  
+  # Cooldown between uses (in ticks, 20 ticks = 1 second)
+  cooldown: 20
+
+# Sound Effects
+sounds:
+  enabled: true
+  launch: ENTITY_FISHING_BOBBER_THROW
+  hook: BLOCK_ANVIL_LAND
+  pull: ENTITY_BAT_TAKEOFF
+  volume: 1.0
+  pitch: 1.2
+
+# Visual Effects
+effects:
+  enabled: true
+  # Particle effect when pulling
+  pull-particle: CLOUD
+  particle-amount: 20
+
+# Messages
+messages:
+  prefix: "&8[&bAeroHook&8]&r "
+  
+  # Command messages
+  reload-success: "&aConfiguration reloaded successfully!"
+  item-given: "&aGrappling Hook given to &e{player}&a!"
+  player-not-found: "&cPlayer not found!"
+  no-permission: "&cYou don't have permission to use this command!"
+  
+  # Usage messages
+  cooldown: "&cPlease wait &e{time}s &cbefore using the hook again!"
+  too-far: "&cThe hook is too far away! (Max: {max}m)"
+  invalid-item: "&cYou must use a Grappling Hook item!"
+  
+  # Console messages
+  usage: "&eUsage: /grapplinghook <give|reload> [player]"
+  
