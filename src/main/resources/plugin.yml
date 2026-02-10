@@ -1,0 +1,23 @@
+name: AeroHook
+version: '1.0.0'
+main: com.aerohook.AeroHook
+api-version: '1.20'
+author: mustafa8907
+description: Professional Grappling Hook Plugin with Anti-Cheat Safety
+website: https://github.com/mustafa8907-png/AeroHook
+
+commands:
+  grapplinghook:
+    description: Main command for AeroHook
+    usage: /grapplinghook <give|reload> [player]
+    aliases: [ghook, gh]
+    permission: grapplinghook.admin
+
+permissions:
+  grapplinghook.admin:
+    description: Allows access to all AeroHook commands
+    default: op
+  grapplinghook.use:
+    description: Allows using the grappling hook
+    default: true
+    
