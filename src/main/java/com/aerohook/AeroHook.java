@@ -6,31 +6,47 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.PluginDescriptionFile;
+import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+/**
+ * AeroHook - Professional Grappling Hook Plugin
+ * 
+ * A high-quality Minecraft grappling hook plugin with anti-cheat safety.
+ * Compatible with Paper/Spigot 1.20.x - 1.21.x
+ * 
+ * @author AeroHook Team
+ * @version 1.0.0
+ */
 public class AeroHook extends JavaPlugin implements Listener {
 
-    // Cooldown tracking
+    // Cooldown tracking map
     private final Map<UUID, Long> cooldowns = new HashMap<>();
     
-    // Configuration cache
+    // Configuration cache for performance
     private double maxDistance;
     private double pullStrength;
     private double verticalBoost;
@@ -44,178 +60,215 @@ public class AeroHook extends JavaPlugin implements Listener {
     
     private boolean soundsEnabled;
     private boolean effectsEnabled;
+    
+    private Logger logger;
 
+    /**
+     * Called when the plugin is enabled
+     */
     @Override
     public void onEnable() {
-        // Save default config
-        saveDefaultConfig();
+        // Initialize logger
+        this.logger = this.getLogger();
         
-        // Load configuration
-        loadConfiguration();
+        // Save default configuration file
+        this.saveDefaultConfig();
         
-        // Register events
-        getServer().getPluginManager().registerEvents(this, this);
+        // Load configuration into memory
+        this.loadConfiguration();
         
-        // Log startup
-        getLogger().info("AeroHook v" + getDescription().getVersion() + " has been enabled!");
-        getLogger().info("Anti-Cheat Safe Grappling Hook loaded successfully.");
+        // Register event listener
+        PluginManager pluginManager = this.getServer().getPluginManager();
+        pluginManager.registerEvents(this, this);
+        
+        // Log successful startup
+        PluginDescriptionFile description = this.getDescription();
+        this.logger.info("AeroHook v" + description.getVersion() + " has been enabled!");
+        this.logger.info("Anti-Cheat Safe Grappling Hook loaded successfully.");
     }
 
+    /**
+     * Called when the plugin is disabled
+     */
     @Override
     public void onDisable() {
-        // Clear cooldowns
-        cooldowns.clear();
+        // Clear all cooldowns
+        this.cooldowns.clear();
         
-        getLogger().info("AeroHook has been disabled!");
+        // Log shutdown
+        this.logger.info("AeroHook has been disabled!");
     }
 
     /**
-     * Load configuration values into memory
+     * Load configuration values into memory for performance
      */
     private void loadConfiguration() {
-        FileConfiguration config = getConfig();
+        FileConfiguration config = this.getConfig();
         
-        // Physics settings
-        maxDistance = config.getDouble("physics.max-distance", 50.0);
-        pullStrength = config.getDouble("physics.pull-strength", 1.5);
-        verticalBoost = config.getDouble("physics.vertical-boost", 0.3);
-        horizontalMultiplier = config.getDouble("physics.horizontal-multiplier", 1.0);
-        velocitySmoothing = config.getDouble("physics.velocity-smoothing", 0.85);
-        cooldownTicks = config.getLong("physics.cooldown", 20);
+        // Load physics settings
+        this.maxDistance = config.getDouble("physics.max-distance", 50.0);
+        this.pullStrength = config.getDouble("physics.pull-strength", 1.5);
+        this.verticalBoost = config.getDouble("physics.vertical-boost", 0.3);
+        this.horizontalMultiplier = config.getDouble("physics.horizontal-multiplier", 1.0);
+        this.velocitySmoothing = config.getDouble("physics.velocity-smoothing", 0.85);
+        this.cooldownTicks = config.getLong("physics.cooldown", 20);
         
-        // Item settings
-        itemName = ChatColor.translateAlternateColorCodes('&', 
-            config.getString("item.name", "&b&lGrappling Hook"));
-        itemLore = config.getStringList("item.lore").stream()
+        // Load item settings
+        String rawItemName = config.getString("item.name", "&b&lGrappling Hook");
+        this.itemName = ChatColor.translateAlternateColorCodes('&', rawItemName);
+        
+        List<String> rawLore = config.getStringList("item.lore");
+        this.itemLore = rawLore.stream()
             .map(line -> ChatColor.translateAlternateColorCodes('&', line))
             .collect(Collectors.toList());
-        itemMaterial = Material.valueOf(config.getString("item.material", "FISHING_ROD"));
         
-        // Effects
-        soundsEnabled = config.getBoolean("sounds.enabled", true);
-        effectsEnabled = config.getBoolean("effects.enabled", true);
+        String materialName = config.getString("item.material", "FISHING_ROD");
+        try {
+            this.itemMaterial = Material.valueOf(materialName);
+        } catch (IllegalArgumentException e) {
+            this.logger.warning("Invalid material '" + materialName + "' in config, using FISHING_ROD");
+            this.itemMaterial = Material.FISHING_ROD;
+        }
+        
+        // Load effect settings
+        this.soundsEnabled = config.getBoolean("sounds.enabled", true);
+        this.effectsEnabled = config.getBoolean("effects.enabled", true);
+        
+        this.logger.info("Configuration loaded successfully.");
     }
 
     /**
-     * Command handler
+     * Handle plugin commands
      */
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        // Verify this is our command
         if (!command.getName().equalsIgnoreCase("grapplinghook")) {
             return false;
         }
 
+        // Check admin permission
         if (!sender.hasPermission("grapplinghook.admin")) {
-            sender.sendMessage(getMessage("no-permission"));
+            sender.sendMessage(this.getMessage("no-permission"));
             return true;
         }
 
+        // Check if arguments were provided
         if (args.length == 0) {
-            sender.sendMessage(getMessage("usage"));
+            sender.sendMessage(this.getMessage("usage"));
             return true;
         }
 
-        switch (args[0].toLowerCase()) {
+        // Handle subcommands
+        String subCommand = args[0].toLowerCase();
+        
+        switch (subCommand) {
             case "reload":
-                reloadConfig();
-                loadConfiguration();
-                sender.sendMessage(getMessage("reload-success"));
+                // Reload configuration
+                this.reloadConfig();
+                this.loadConfiguration();
+                sender.sendMessage(this.getMessage("reload-success"));
                 return true;
 
             case "give":
+                // Give grappling hook to player
                 if (args.length < 2) {
-                    sender.sendMessage(getMessage("usage"));
+                    sender.sendMessage(this.getMessage("usage"));
                     return true;
                 }
 
                 Player target = Bukkit.getPlayer(args[1]);
                 if (target == null) {
-                    sender.sendMessage(getMessage("player-not-found"));
+                    sender.sendMessage(this.getMessage("player-not-found"));
                     return true;
                 }
 
-                giveGrapplingHook(target);
-                sender.sendMessage(getMessage("item-given")
-                    .replace("{player}", target.getName()));
+                this.giveGrapplingHook(target);
+                String successMessage = this.getMessage("item-given");
+                successMessage = successMessage.replace("{player}", target.getName());
+                sender.sendMessage(successMessage);
                 return true;
 
             default:
-                sender.sendMessage(getMessage("usage"));
+                sender.sendMessage(this.getMessage("usage"));
                 return true;
         }
     }
 
     /**
-     * Handle fishing rod events for grappling hook
+     * Handle fishing rod events for grappling hook functionality
      */
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerFish(PlayerFishEvent event) {
         Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand();
+        PlayerInventory inventory = player.getInventory();
+        ItemStack item = inventory.getItemInMainHand();
 
-        // Check if player is using a grappling hook
-        if (!isGrapplingHook(item)) {
+        // Verify player is using a grappling hook
+        if (!this.isGrapplingHook(item)) {
             return;
         }
 
-        // Check permission
+        // Check usage permission
         if (!player.hasPermission("grapplinghook.use")) {
             event.setCancelled(true);
             return;
         }
 
         FishHook hook = event.getHook();
+        PlayerFishEvent.State state = event.getState();
         
-        // Only activate when hook lands in ground/block
-        if (event.getState() != PlayerFishEvent.State.IN_GROUND) {
+        // Only activate when hook lands on a block
+        if (state != PlayerFishEvent.State.IN_GROUND) {
             return;
         }
 
+        // Cancel the default fishing behavior
         event.setCancelled(true);
 
         // Check cooldown
-        if (isOnCooldown(player)) {
-            long remaining = getRemainingCooldown(player);
-            player.sendMessage(getMessage("cooldown")
-                .replace("{time}", String.format("%.1f", remaining / 20.0)));
+        if (this.isOnCooldown(player)) {
+            long remaining = this.getRemainingCooldown(player);
+            double seconds = remaining / 20.0;
+            String cooldownMessage = this.getMessage("cooldown");
+            cooldownMessage = cooldownMessage.replace("{time}", String.format("%.1f", seconds));
+            player.sendMessage(cooldownMessage);
             return;
         }
 
         Location hookLocation = hook.getLocation();
         Location playerLocation = player.getLocation();
 
-        // Check distance
+        // Verify distance is within configured limit
         double distance = hookLocation.distance(playerLocation);
-        if (distance > maxDistance) {
-            player.sendMessage(getMessage("too-far")
-                .replace("{max}", String.valueOf((int) maxDistance)));
+        if (distance > this.maxDistance) {
+            String tooFarMessage = this.getMessage("too-far");
+            tooFarMessage = tooFarMessage.replace("{max}", String.valueOf((int) this.maxDistance));
+            player.sendMessage(tooFarMessage);
             return;
         }
 
-        // Apply grappling hook physics
-        applyGrapplingPhysics(player, hookLocation);
+        // Apply grappling physics
+        this.applyGrapplingPhysics(player, hookLocation);
 
         // Set cooldown
-        setCooldown(player);
+        this.setCooldown(player);
 
-        // Play effects
-        if (soundsEnabled) {
-            playSound(player, "hook");
-            playSound(player, "pull");
+        // Play sound effects
+        if (this.soundsEnabled) {
+            this.playSound(player, "hook");
+            this.playSound(player, "pull");
         }
 
-        if (effectsEnabled) {
-            player.getWorld().spawnParticle(
-                Particle.valueOf(getConfig().getString("effects.pull-particle", "CLOUD")),
-                playerLocation,
-                getConfig().getInt("effects.particle-amount", 20),
-                0.5, 0.5, 0.5, 0.1
-            );
+        // Spawn particles
+        if (this.effectsEnabled) {
+            this.spawnPullParticles(player, playerLocation);
         }
     }
 
     /**
-     * Apply smooth, anti-cheat safe grappling physics
+     * Apply smooth, anti-cheat safe grappling hook physics
+     * Uses vector mathematics for realistic pulling
      */
     private void applyGrapplingPhysics(Player player, Location hookLocation) {
         Location playerLocation = player.getLocation();
@@ -223,38 +276,45 @@ public class AeroHook extends JavaPlugin implements Listener {
         // Calculate direction vector from player to hook
         Vector direction = hookLocation.toVector().subtract(playerLocation.toVector());
         
-        // Normalize and apply pull strength
+        // Normalize the direction vector (make it unit length)
         direction.normalize();
-        direction.multiply(pullStrength);
+        
+        // Apply configured pull strength
+        direction.multiply(this.pullStrength);
         
         // Apply horizontal multiplier to X and Z components
-        direction.setX(direction.getX() * horizontalMultiplier);
-        direction.setZ(direction.getZ() * horizontalMultiplier);
+        double newX = direction.getX() * this.horizontalMultiplier;
+        double newZ = direction.getZ() * this.horizontalMultiplier;
+        direction.setX(newX);
+        direction.setZ(newZ);
         
-        // Add vertical boost
-        direction.setY(direction.getY() + verticalBoost);
+        // Add vertical boost for upward movement
+        double newY = direction.getY() + this.verticalBoost;
+        direction.setY(newY);
         
-        // Get current velocity for smoothing
+        // Get player's current velocity
         Vector currentVelocity = player.getVelocity();
         
-        // Smooth velocity transition (prevents AC flags)
-        Vector finalVelocity = currentVelocity.multiply(1 - velocitySmoothing)
-            .add(direction.multiply(velocitySmoothing));
+        // Smooth velocity transition to prevent anti-cheat flags
+        // Formula: finalVelocity = currentVelocity * (1 - smoothing) + targetVelocity * smoothing
+        Vector smoothedCurrent = currentVelocity.multiply(1.0 - this.velocitySmoothing);
+        Vector smoothedTarget = direction.multiply(this.velocitySmoothing);
+        Vector finalVelocity = smoothedCurrent.add(smoothedTarget);
         
-        // Apply velocity to player
+        // Apply the calculated velocity to the player
         player.setVelocity(finalVelocity);
     }
 
     /**
-     * Create a grappling hook item
+     * Create a grappling hook item with custom name and lore
      */
     private ItemStack createGrapplingHook() {
-        ItemStack item = new ItemStack(itemMaterial);
+        ItemStack item = new ItemStack(this.itemMaterial, 1);
         ItemMeta meta = item.getItemMeta();
         
         if (meta != null) {
-            meta.setDisplayName(itemName);
-            meta.setLore(itemLore);
+            meta.setDisplayName(this.itemName);
+            meta.setLore(new ArrayList<>(this.itemLore));
             item.setItemMeta(meta);
         }
         
@@ -262,85 +322,147 @@ public class AeroHook extends JavaPlugin implements Listener {
     }
 
     /**
-     * Give grappling hook to player
+     * Give a grappling hook to the specified player
      */
     private void giveGrapplingHook(Player player) {
-        player.getInventory().addItem(createGrapplingHook());
+        ItemStack hook = this.createGrapplingHook();
+        PlayerInventory inventory = player.getInventory();
+        inventory.addItem(hook);
         
-        if (soundsEnabled) {
-            playSound(player, "launch");
+        // Play sound effect
+        if (this.soundsEnabled) {
+            this.playSound(player, "launch");
         }
     }
 
     /**
-     * Check if item is a grappling hook
+     * Check if an item is a valid grappling hook
      */
     private boolean isGrapplingHook(ItemStack item) {
-        if (item == null || item.getType() != itemMaterial) {
+        // Null check
+        if (item == null) {
+            return false;
+        }
+        
+        // Check material type
+        if (item.getType() != this.itemMaterial) {
             return false;
         }
 
+        // Check item meta
         ItemMeta meta = item.getItemMeta();
-        if (meta == null || !meta.hasDisplayName()) {
+        if (meta == null) {
+            return false;
+        }
+        
+        // Check display name
+        if (!meta.hasDisplayName()) {
             return false;
         }
 
-        return meta.getDisplayName().equals(itemName);
+        // Verify the display name matches
+        String displayName = meta.getDisplayName();
+        return displayName.equals(this.itemName);
     }
 
     /**
-     * Cooldown management
+     * Check if a player is on cooldown
      */
     private boolean isOnCooldown(Player player) {
-        if (!cooldowns.containsKey(player.getUniqueId())) {
+        UUID playerId = player.getUniqueId();
+        
+        if (!this.cooldowns.containsKey(playerId)) {
             return false;
         }
 
-        long lastUse = cooldowns.get(player.getUniqueId());
+        long lastUse = this.cooldowns.get(playerId);
         long currentTime = System.currentTimeMillis();
-        long cooldownMillis = cooldownTicks * 50; // Convert ticks to milliseconds
+        long cooldownMillis = this.cooldownTicks * 50; // Convert ticks to milliseconds (1 tick = 50ms)
 
         return (currentTime - lastUse) < cooldownMillis;
     }
 
+    /**
+     * Get remaining cooldown time in ticks
+     */
     private long getRemainingCooldown(Player player) {
-        long lastUse = cooldowns.get(player.getUniqueId());
+        UUID playerId = player.getUniqueId();
+        long lastUse = this.cooldowns.get(playerId);
         long currentTime = System.currentTimeMillis();
-        long cooldownMillis = cooldownTicks * 50;
-        long remaining = cooldownMillis - (currentTime - lastUse);
+        long cooldownMillis = this.cooldownTicks * 50;
+        long elapsed = currentTime - lastUse;
+        long remaining = cooldownMillis - elapsed;
         
-        return remaining / 50; // Convert back to ticks
-    }
-
-    private void setCooldown(Player player) {
-        cooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+        // Convert milliseconds back to ticks
+        return remaining / 50;
     }
 
     /**
-     * Play sound effect
+     * Set cooldown for a player
+     */
+    private void setCooldown(Player player) {
+        UUID playerId = player.getUniqueId();
+        long currentTime = System.currentTimeMillis();
+        this.cooldowns.put(playerId, currentTime);
+    }
+
+    /**
+     * Play a configured sound effect
      */
     private void playSound(Player player, String soundKey) {
         try {
-            Sound sound = Sound.valueOf(getConfig().getString("sounds." + soundKey));
-            float volume = (float) getConfig().getDouble("sounds.volume", 1.0);
-            float pitch = (float) getConfig().getDouble("sounds.pitch", 1.2);
+            FileConfiguration config = this.getConfig();
+            String soundName = config.getString("sounds." + soundKey);
             
-            player.playSound(player.getLocation(), sound, volume, pitch);
+            if (soundName == null) {
+                return;
+            }
+            
+            Sound sound = Sound.valueOf(soundName);
+            float volume = (float) config.getDouble("sounds.volume", 1.0);
+            float pitch = (float) config.getDouble("sounds.pitch", 1.2);
+            
+            Location location = player.getLocation();
+            player.playSound(location, sound, volume, pitch);
+        } catch (IllegalArgumentException e) {
+            this.logger.warning("Invalid sound configuration for: " + soundKey);
         } catch (Exception e) {
-            getLogger().warning("Invalid sound configuration for: " + soundKey);
+            this.logger.warning("Error playing sound: " + soundKey + " - " + e.getMessage());
         }
     }
 
     /**
-     * Get formatted message from config
+     * Spawn particle effects when pulling
+     */
+    private void spawnPullParticles(Player player, Location location) {
+        try {
+            FileConfiguration config = this.getConfig();
+            String particleName = config.getString("effects.pull-particle", "CLOUD");
+            int amount = config.getInt("effects.particle-amount", 20);
+            
+            Particle particle = Particle.valueOf(particleName);
+            World world = player.getWorld();
+            
+            world.spawnParticle(particle, location, amount, 0.5, 0.5, 0.5, 0.1);
+        } catch (IllegalArgumentException e) {
+            this.logger.warning("Invalid particle configuration: " + e.getMessage());
+        } catch (Exception e) {
+            this.logger.warning("Error spawning particles: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get a formatted message from the configuration
      */
     private String getMessage(String key) {
-        String prefix = ChatColor.translateAlternateColorCodes('&',
-            getConfig().getString("messages.prefix", "&8[&bAeroHook&8]&r "));
-        String message = ChatColor.translateAlternateColorCodes('&',
-            getConfig().getString("messages." + key, "&cMessage not found: " + key));
+        FileConfiguration config = this.getConfig();
+        
+        String prefix = config.getString("messages.prefix", "&8[&bAeroHook&8]&r ");
+        prefix = ChatColor.translateAlternateColorCodes('&', prefix);
+        
+        String message = config.getString("messages." + key, "&cMessage not found: " + key);
+        message = ChatColor.translateAlternateColorCodes('&', message);
         
         return prefix + message;
     }
-  }
-          
+}
