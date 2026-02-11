@@ -4,7 +4,7 @@ main: com.aerohook.AeroHook
 api-version: '1.20'
 author: mustafa8907
 description: Professional Grappling Hook Plugin with Anti-Cheat Safety
-website: https://github.com/mustafa8907-png/AeroHook
+website: https://github.com/aerohook
 
 commands:
   grapplinghook:
@@ -20,4 +20,3 @@ permissions:
   grapplinghook.use:
     description: Allows using the grappling hook
     default: true
-    
